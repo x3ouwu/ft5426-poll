@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Radxa ROCK 3C: hand the touch controller of a Raspberry Pi 7" DSI clone
+ * to ft5426_poll instead of the vendor raspits_ft5426 driver.
+ *
+ * The node /i2c@fe5c0000/rockpi_ft5406@38 is created by the vendor overlay
+ * rock-3c-raspberrypi-7inch-touchscreen.dtbo, so this overlay must be applied
+ * AFTER it. Radxa's u-boot-update lists overlays alphabetically, and this
+ * file name sorts after the vendor one. Do not rename it to sort earlier:
+ * U-Boot then fails to apply it and boots the rescue entry.
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	metadata {
+		title = "FT5426 multi-touch (polled) for RPi 7in DSI clones";
+		compatible = "radxa,rock-3c";
+		category = "display";
+		description = "Rebinds the touch controller at i2c3 0x38 from raspits_ft5426 to ft5426_poll. Apply after rock-3c-raspberrypi-7inch-touchscreen.";
+	};
+
+	fragment@0 {
+		target-path = "/i2c@fe5c0000/rockpi_ft5406@38";
+		__overlay__ {
+			compatible = "focaltech,ft5426-poll";
+		};
+	};
+};
