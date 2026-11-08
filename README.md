@@ -149,13 +149,30 @@ sudo sed -i 's# /boot/dtbo/rock-3c-rpi-7inch-multitouch.dtbo##' /mnt/boot/extlin
 - An on-screen keyboard and desktop gestures depend on the desktop, not on
   this driver.
 
+## Mainline kernels
+
+Not tested yet. What we found (November 2026), for anyone who wants to pick
+this up:
+
+| Piece | Mainline status |
+|-------|-----------------|
+| ROCK 3C board | `rk3566-rock-3c.dts` since Linux 6.10; U-Boot `rock-3c-rk3566_defconfig` since v2024.10. DSI is not enabled in it. |
+| DSI host (RK3566/RK3568, VOP2) | `dw-mipi-dsi-rockchip` with RK3568 support since 6.1; `dsi1` at `fe070000` is the one this panel uses. |
+| Panel power, backlight | `rpi-panel-attiny-regulator` (I²C `0x45`). It accepts only firmware IDs `0xde` and `0xc3`; our clone's MCU answers `0xc3` at register `0x80`, so it should work unchanged. |
+| DSI bridge, panel | `toshiba,tc358762` bridge + panel-simple `powertip,ph800480t013-idf02`. The i.MX8MP overlay `imx8mp-venice-gw74xx-rpidsi.dtso` is a complete template for a non-Raspberry Pi SoC. |
+| Touch | `edt-ft5x06` supports the FT5426 but still requires an IRQ. A series by Marek Vasut (January 2026) adds polling when no IRQ is given; it was not merged as of 7.4-rc1. This module is tested on 6.1 only; it switches to the single-argument `probe` on 6.3+ but has not been built there yet. |
+| Wi-Fi / BT (AIC8800) | No in-tree driver; out-of-tree DKMS only (`radxa-pkg/aic8800`), which broke on 7.1 and 7.4 before being fixed. |
+
+So a mainline setup needs a ROCK 3C DSI overlay (none exists yet, also not in
+Armbian), either the `edt-ft5x06` polling series or this module, and the
+out-of-tree AIC8800 driver or a USB Wi-Fi adapter with an in-tree driver.
+
 ## Plans
 
 - Read size and orientation from the standard device tree properties
   (`touchscreen-size-x`, `touchscreen-inverted-x`, …) instead of module
   parameters.
-- Mainline kernels: check whether a polling mode for `edt-ft5x06` is the
-  better route, and propose it upstream if so.
+- A mainline device tree overlay for the panel on the ROCK 3C.
 
 ## License
 

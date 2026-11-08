@@ -11,6 +11,7 @@
 #include <linux/input.h>
 #include <linux/input/mt.h>
 #include <linux/of.h>
+#include <linux/version.h>
 
 #define FT_MAX_POINTS	5
 #define FT_POINT_LEN	6
@@ -121,7 +122,11 @@ MODULE_DEVICE_TABLE(i2c, ft_id);
 
 static struct i2c_driver ft_driver = {
 	.driver = { .name = "ft5426_poll", .of_match_table = ft_of_match },
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+	.probe = ft_probe,	/* single-argument probe since 6.3; probe_new removed in 6.6 */
+#else
 	.probe_new = ft_probe,
+#endif
 	.id_table = ft_id,
 };
 module_i2c_driver(ft_driver);
