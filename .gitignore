@@ -8,3 +8,4 @@ modules.order
 Module.symvers
 *.dtbo
 .tmp_versions/
+tc358762/tc358762.c

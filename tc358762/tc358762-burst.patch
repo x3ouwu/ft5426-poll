@@ -1,0 +1,19 @@
+--- a/drivers/gpu/drm/bridge/tc358762.c
++++ b/drivers/gpu/drm/bridge/tc358762.c
+@@ -278,8 +278,14 @@
+ 	/* TODO: Find out how to get dual-lane mode working */
+ 	dsi->lanes = 1;
+ 	dsi->format = MIPI_DSI_FMT_RGB888;
+-	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
+-			  MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_VIDEO_HSE;
++	/*
++	 * Burst mode: with sync pulses and HSE packets (the upstream default) a
++	 * Rockchip RK3566 DSI host gives a picture shifted sideways by about 150
++	 * pixels that wraps around. The Radxa vendor driver for this panel also
++	 * uses burst mode.
++	 */
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
++			  MIPI_DSI_MODE_LPM;
+ 
+ 	ret = tc358762_parse_dt(ctx);
+ 	if (ret < 0)

@@ -9,7 +9,8 @@ marks the device as a touchscreen, so pinch-zoom, two-finger scroll and other
 gestures work in browsers and Wayland desktops.
 
 Tested on a **Radxa ROCK 3C** (RK3566) with Radxa's Debian 12 image
-(kernel `6.1.84-*-rk2410`). The driver itself is board-independent; only the
+(kernel `6.1.84-*-rk2410`) and on mainline Linux 6.18. The driver itself is
+board-independent; only the
 device tree overlay is ROCK 3C specific.
 
 ## The problem
@@ -40,8 +41,9 @@ requires an interrupt line, which these panels do not have.
   line up with the image of these panels. Set `invert=0` if yours is the other
   way round.
 
-It does **not** drive the display: the panel and bridge stay with the vendor
-`raspits,tc358762` driver.
+It does **not** drive the display. On the vendor kernel the panel and bridge
+stay with the vendor `raspits,tc358762` driver; for mainline see
+[Mainline kernels](#mainline-kernels).
 
 ## Is this my panel?
 
@@ -151,28 +153,65 @@ sudo sed -i 's# /boot/dtbo/rock-3c-rpi-7inch-multitouch.dtbo##' /mnt/boot/extlin
 
 ## Mainline kernels
 
-Not tested yet. What we found (November 2026), for anyone who wants to pick
-this up:
+Tested on **Linux 6.18.62** (NixOS 26.05) on the ROCK 3C: picture, backlight
+and 5-point touch work. Three pieces are not in mainline:
+
+1. **Device tree overlay** for the panel on the ROCK 3C:
+   [`overlays/rock-3c-rpi-7inch-dsi-mainline.dts`](overlays/rock-3c-rpi-7inch-dsi-mainline.dts)
+   (DSI host, bridge, panel, panel MCU, touch). It keeps `vcc_mipi` always on:
+   otherwise the panel MCU loses power when the kernel switches off unused
+   regulators.
+2. **A patched `tc358762` bridge driver.** The in-tree driver asks the DSI host
+   for sync pulses and HSE packets; with the RK3566 DSI host the picture is then
+   shifted about 150 pixels sideways and wraps around. DSI porches have no
+   effect on it. Burst mode, which Radxa's vendor driver uses, gives a correct
+   picture: [`tc358762/tc358762-burst.patch`](tc358762/tc358762-burst.patch).
+3. **This touch module** (`edt-ft5x06` still requires an IRQ line).
+
+The in-tree pieces work unchanged: `dw-mipi-dsi-rockchip`, `phy-rockchip-inno-dsidphy`,
+`rpi-panel-attiny-regulator` (this clone's MCU answers `0xc3`), panel-simple
+`powertip,ph800480t013-idf02`.
+
+### Install on a mainline distribution
+
+Needs kernel headers, `dtc`, `curl`, `patch`. The board's boot loader must
+apply the overlay (e.g. `fdtoverlays` in `extlinux.conf`, or merge it into the
+board DTB with `fdtoverlay`).
+
+```sh
+# touch module (DKMS, as above)
+sudo mkdir -p /usr/src/ft5426-poll-1.0
+sudo cp ft5426_poll.c Makefile dkms.conf /usr/src/ft5426-poll-1.0/
+sudo dkms install ft5426-poll/1.0
+
+# bridge driver: kernel.org source of the running version + burst patch
+cd tc358762 && ./get-source.sh && make
+sudo install -Dm644 tc358762.ko /lib/modules/$(uname -r)/updates/tc358762.ko
+sudo depmod -a      # updates/ is preferred over the in-tree module
+cd ..
+
+# overlay
+dtc -q -@ -I dts -O dtb -o rock-3c-rpi-7inch-dsi.dtbo \
+  overlays/rock-3c-rpi-7inch-dsi-mainline.dts
+```
+
+The bridge module has to be rebuilt for every new kernel (re-run the three
+`tc358762` lines). The touch here is rotated 180° (`invert=1`, the default).
 
 | Piece | Mainline status |
 |-------|-----------------|
 | ROCK 3C board | `rk3566-rock-3c.dts` since Linux 6.10; U-Boot `rock-3c-rk3566_defconfig` since v2024.10. DSI is not enabled in it. |
-| DSI host (RK3566/RK3568, VOP2) | `dw-mipi-dsi-rockchip` with RK3568 support since 6.1; `dsi1` at `fe070000` is the one this panel uses. |
-| Panel power, backlight | `rpi-panel-attiny-regulator` (I²C `0x45`). It accepts only firmware IDs `0xde` and `0xc3`; our clone's MCU answers `0xc3` at register `0x80`, so it should work unchanged. |
-| DSI bridge, panel | `toshiba,tc358762` bridge + panel-simple `powertip,ph800480t013-idf02`. The i.MX8MP overlay `imx8mp-venice-gw74xx-rpidsi.dtso` is a complete template for a non-Raspberry Pi SoC. |
-| Touch | `edt-ft5x06` supports the FT5426 but still requires an IRQ. A series by Marek Vasut (January 2026) adds polling when no IRQ is given; it was not merged as of 7.4-rc1. This module is tested on 6.1 only; it switches to the single-argument `probe` on 6.3+ but has not been built there yet. |
-| Wi-Fi / BT (AIC8800) | No in-tree driver; out-of-tree DKMS only (`radxa-pkg/aic8800`), which broke on 7.1 and 7.4 before being fixed. |
-
-So a mainline setup needs a ROCK 3C DSI overlay (none exists yet, also not in
-Armbian), either the `edt-ft5x06` polling series or this module, and the
-out-of-tree AIC8800 driver or a USB Wi-Fi adapter with an in-tree driver.
+| Touch | A series by Marek Vasut (January 2026) adds polling to `edt-ft5x06` when no IRQ is given; not merged as of 7.4-rc1. |
+| Wi-Fi / BT (AIC8800) | No in-tree driver; out-of-tree DKMS only (`radxa-pkg/aic8800`). |
 
 ## Plans
 
 - Read size and orientation from the standard device tree properties
   (`touchscreen-size-x`, `touchscreen-inverted-x`, …) instead of module
   parameters.
-- A mainline device tree overlay for the panel on the ROCK 3C.
+- Upstream the bridge fix: let the device tree choose the DSI mode of
+  `tc358762` instead of hard-coding it.
+- A DKMS package for the bridge module.
 
 ## License
 
