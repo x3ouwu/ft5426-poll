@@ -9,8 +9,8 @@ marks the device as a touchscreen, so pinch-zoom, two-finger scroll and other
 gestures work in browsers and Wayland desktops.
 
 Tested on a **Radxa ROCK 3C** (RK3566) with Radxa's Debian 12 image
+(kernel `6.1.84-*-rk2410`) and on mainline Linux 6.18. The driver itself is
 board-independent; only the device tree overlays are ROCK 3C specific.
-device tree overlay is ROCK 3C specific.
 
 ## The problem
 
